@@ -1,75 +1,116 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local mouse = player:GetMouse()
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
-local selectedPart = nil
-local selecting = false
+local targetPlayer = nil
+local highlight = nil
+local billboard = nil
+local enabled = false
 
+-- GUI
 local Window = Rayfield:CreateWindow({
-   Name = "Throw System",
+   Name = "LockOn System",
    LoadingTitle = "Loading...",
-   LoadingSubtitle = "Fixed Version",
+   LoadingSubtitle = "Visual Only",
    ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
--- 選択モード
-Tab:CreateButton({
-   Name = "選択モードON",
-   Callback = function()
-      selecting = true
-      print("選択モードON")
+-- 一番近いプレイヤー取得
+local function getClosest()
+   local closest = nil
+   local dist = math.huge
+
+   for _, plr in pairs(Players:GetPlayers()) do
+      if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+         local d = (plr.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+         if d < dist then
+            dist = d
+            closest = plr
+         end
+      end
    end
-})
 
--- クリックで1回だけ取得
-mouse.Button1Down:Connect(function()
-   if not selecting then return end
+   return closest, dist
+end
 
-   local target = mouse.Target
-   if target and target:IsA("BasePart") then
-      selectedPart = target
-      selecting = false
-      print("選択完了:", target.Name)
-   end
-end)
+-- 表示作成
+local function createVisual(plr)
+   if highlight then highlight:Destroy() end
+   if billboard then billboard:Destroy() end
 
--- 飛ばす
-Tab:CreateButton({
-   Name = "敵に飛ばす",
-   Callback = function()
-      if not selectedPart then
-         print("何も選択されてない")
+   if not plr or not plr.Character then return end
+
+   local char = plr.Character
+   local hrp = char:FindFirstChild("HumanoidRootPart")
+   if not hrp then return end
+
+   -- ハイライト
+   highlight = Instance.new("Highlight")
+   highlight.FillTransparency = 0.5
+   highlight.OutlineColor = Color3.new(1,0,0)
+   highlight.Parent = char
+
+   -- 名前＋距離
+   billboard = Instance.new("BillboardGui")
+   billboard.Size = UDim2.new(0, 200, 0, 50)
+   billboard.StudsOffset = Vector3.new(0, 3, 0)
+   billboard.AlwaysOnTop = true
+   billboard.Parent = hrp
+
+   local text = Instance.new("TextLabel")
+   text.Size = UDim2.new(1,0,1,0)
+   text.BackgroundTransparency = 1
+   text.TextColor3 = Color3.new(1,1,1)
+   text.TextScaled = true
+   text.Parent = billboard
+
+   RunService.RenderStepped:Connect(function()
+      if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and enabled then
+         local dist = (plr.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+         text.Text = plr.Name .. " | " .. math.floor(dist) .. "m"
+      end
+   end)
+end
+
+-- ON/OFF
+Tab:CreateToggle({
+   Name = "ロックオンON",
+   CurrentValue = false,
+   Callback = function(Value)
+      enabled = Value
+
+      if not Value then
+         if highlight then highlight:Destroy() end
+         if billboard then billboard:Destroy() end
+         highlight = nil
+         billboard = nil
+         targetPlayer = nil
          return
       end
 
-      local closest
-      local dist = math.huge
-
-      for _, plr in pairs(Players:GetPlayers()) do
-         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local d = (plr.Character.HumanoidRootPart.Position - selectedPart.Position).Magnitude
-            if d < dist then
-               dist = d
-               closest = plr
+      task.spawn(function()
+         while enabled do
+            local closest = getClosest()
+            if closest ~= targetPlayer then
+               targetPlayer = closest
+               createVisual(targetPlayer)
             end
+            task.wait(0.5)
          end
-      end
+      end)
+   end
+})
 
-      if not closest then return end
-
-      local hrp = closest.Character.HumanoidRootPart
-
-      local bv = Instance.new("BodyVelocity")
-      bv.Velocity = (hrp.Position - selectedPart.Position).Unit * 120
-      bv.MaxForce = Vector3.new(1e9,1e9,1e9)
-      bv.Parent = selectedPart
-
-      game.Debris:AddItem(bv, 0.3)
-
-      print("発射した")
+-- 手動更新ボタン
+Tab:CreateButton({
+   Name = "ターゲット更新",
+   Callback = function()
+      local closest = getClosest()
+      targetPlayer = closest
+      createVisual(targetPlayer)
    end
 })
