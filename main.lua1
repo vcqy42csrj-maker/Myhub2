@@ -1,3 +1,37 @@
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+
+local gui = Instance.new("ScreenGui")
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Parent = gui
+frame.Size = UDim2.new(0,200,0,300)
+frame.Position = UDim2.new(0.4,0,0.2,0)
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = frame
+
+local function createButton(plr)
+
+    if plr == player then return end
+
+    local button = Instance.new("TextButton")
+    button.Parent = frame
+    button.Size = UDim2.new(1,0,0,40)
+    button.Text = plr.Name
+
+    button.MouseButton1Click:Connect(function()
+        print(plr.Name .. " を選択")
+    end)
+end
+
+for _,plr in pairs(Players:GetPlayers()) do
+    createButton(plr)
+end
+
+Players.PlayerAdded:Connect(createButton)
 local ScreenGui = Instance.new("ScreenGui")
 local Frame = Instance.new("Frame")
 local TextButton = Instance.new("TextButton")
