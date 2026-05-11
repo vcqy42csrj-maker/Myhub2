@@ -1,18 +1,103 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local player = Players.LocalPlayer
+local CarryEvent = ReplicatedStorage:WaitForChild("CarryEvent")
 
+CarryEvent.OnServerEvent:Connect(function(player, targetName)
+
+    local target = Players:FindFirstChild(targetName)
+    if not target then return end
+
+    local char1 = player.Character
+    local char2 = target.Character
+
+    if not char1 or not char2 then return end
+
+    local torso = char1:FindFirstChild("Torso")
+    local hrp2 = char2:FindFirstChild("HumanoidRootPart")
+
+    if not torso or not hrp2 then return end
+
+    local old = torso:FindFirstChild("CarryWeld")
+    if old then
+        old:Destroy()
+    end
+
+    hrp2.CFrame = torso.CFrame * CFrame.new(0,2,0)
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Name = "CarryWeld"
+    weld.Part0 = torso
+    weld.Part1 = hrp2
+    weld.Parent = torso
+end)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local CarryEvent = ReplicatedStorage:WaitForChild("CarryEvent")
+
+-- GUI
 local gui = Instance.new("ScreenGui")
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
 frame.Parent = gui
-frame.Size = UDim2.new(0,200,0,300)
+frame.Size = UDim2.new(0,220,0,300)
 frame.Position = UDim2.new(0.4,0,0.2,0)
 
 local layout = Instance.new("UIListLayout")
 layout.Parent = frame
 
+-- ドラッグ
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+frame.InputBegan:Connect(function(input)
+
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+    if input == dragInput and dragging then
+
+        local delta = input.Position - dragStart
+
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- プレイヤーボタン
 local function createButton(plr)
 
     if plr == player then return end
@@ -23,7 +108,7 @@ local function createButton(plr)
     button.Text = plr.Name
 
     button.MouseButton1Click:Connect(function()
-        print(plr.Name .. " を選択")
+        CarryEvent:FireServer(plr.Name)
     end)
 end
 
@@ -32,20 +117,3 @@ for _,plr in pairs(Players:GetPlayers()) do
 end
 
 Players.PlayerAdded:Connect(createButton)
-local ScreenGui = Instance.new("ScreenGui")
-local Frame = Instance.new("Frame")
-local TextButton = Instance.new("TextButton")
-
-ScreenGui.Parent = game.CoreGui
-
-Frame.Parent = ScreenGui
-Frame.Size = UDim2.new(0,200,0,120)
-Frame.Position = UDim2.new(0.4,0,0.3,0)
-
-TextButton.Parent = Frame
-TextButton.Size = UDim2.new(1,0,0,50)
-TextButton.Text = "肩車"
-
-TextButton.MouseButton1Click:Connect(function()
-    print("肩車ボタン押された")
-end)
