@@ -1,0 +1,94 @@
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local grabbedObject = nil
+
+-- =====================
+-- GUI
+-- =====================
+local Window = Rayfield:CreateWindow({
+   Name = "Throw System",
+   LoadingTitle = "Loading...",
+   LoadingSubtitle = "Object Control",
+   ConfigurationSaving = { Enabled = false }
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- =====================
+-- オブジェクト取得（仮）
+-- =====================
+Tab:CreateButton({
+   Name = "オブジェクト取得（例）",
+   Callback = function()
+      local char = player.Character
+      if not char then return end
+
+      local root = char:FindFirstChild("HumanoidRootPart")
+      if not root then return end
+
+      -- 仮オブジェクト生成（あなたの既存システムに差し替えOK）
+      local part = Instance.new("Part")
+      part.Size = Vector3.new(2,2,2)
+      part.Position = root.Position + Vector3.new(0,5,0)
+      part.Anchored = false
+      part.Parent = workspace
+
+      grabbedObject = part
+      print("オブジェクト取得")
+   end
+})
+
+-- =====================
+-- 敵に突進
+-- =====================
+Tab:CreateButton({
+   Name = "敵に突進",
+   Callback = function()
+      if not grabbedObject then
+         print("オブジェクトなし")
+         return
+      end
+
+      -- 一番近い敵探す
+      local closest
+      local dist = math.huge
+
+      for _, plr in pairs(Players:GetPlayers()) do
+         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local d = (plr.Character.HumanoidRootPart.Position - grabbedObject.Position).Magnitude
+            if d < dist then
+               dist = d
+               closest = plr
+            end
+         end
+      end
+
+      if not closest then return end
+
+      local hrp = closest.Character.HumanoidRootPart
+
+      -- 突進処理
+      local bv = Instance.new("BodyVelocity")
+      bv.Velocity = (hrp.Position - grabbedObject.Position).Unit * 120
+      bv.MaxForce = Vector3.new(1e9,1e9,1e9)
+      bv.Parent = grabbedObject
+
+      game:GetService("Debris"):AddItem(bv, 0.3)
+
+      print("突進発射")
+   end
+})
+
+-- =====================
+-- リセット
+-- =====================
+Tab:CreateButton({
+   Name = "解除",
+   Callback = function()
+      grabbedObject = nil
+      print("リセット")
+   end
+})
