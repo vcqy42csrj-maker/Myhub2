@@ -2,31 +2,31 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
 
-local targetPlayer = nil
-local highlight = nil
-local billboard = nil
+local lp = Players.LocalPlayer
+
 local enabled = false
+local target = nil
+local highlight = nil
 
--- GUI
 local Window = Rayfield:CreateWindow({
-   Name = "LockOn System",
-   LoadingTitle = "Loading...",
-   LoadingSubtitle = "Visual Only",
+   Name = "Lock System",
+   LoadingTitle = "Loading",
+   LoadingSubtitle = "Safe Version",
    ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
--- 一番近いプレイヤー取得
+-- 安全に取得
 local function getClosest()
-   local closest = nil
-   local dist = math.huge
+   if not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart") then return nil end
+
+   local closest, dist = nil, math.huge
 
    for _, plr in pairs(Players:GetPlayers()) do
-      if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-         local d = (plr.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+      if plr ~= lp and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+         local d = (plr.Character.HumanoidRootPart.Position - lp.Character.HumanoidRootPart.Position).Magnitude
          if d < dist then
             dist = d
             closest = plr
@@ -34,83 +34,63 @@ local function getClosest()
       end
    end
 
-   return closest, dist
-end
-
--- 表示作成
-local function createVisual(plr)
-   if highlight then highlight:Destroy() end
-   if billboard then billboard:Destroy() end
-
-   if not plr or not plr.Character then return end
-
-   local char = plr.Character
-   local hrp = char:FindFirstChild("HumanoidRootPart")
-   if not hrp then return end
-
-   -- ハイライト
-   highlight = Instance.new("Highlight")
-   highlight.FillTransparency = 0.5
-   highlight.OutlineColor = Color3.new(1,0,0)
-   highlight.Parent = char
-
-   -- 名前＋距離
-   billboard = Instance.new("BillboardGui")
-   billboard.Size = UDim2.new(0, 200, 0, 50)
-   billboard.StudsOffset = Vector3.new(0, 3, 0)
-   billboard.AlwaysOnTop = true
-   billboard.Parent = hrp
-
-   local text = Instance.new("TextLabel")
-   text.Size = UDim2.new(1,0,1,0)
-   text.BackgroundTransparency = 1
-   text.TextColor3 = Color3.new(1,1,1)
-   text.TextScaled = true
-   text.Parent = billboard
-
-   RunService.RenderStepped:Connect(function()
-      if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and enabled then
-         local dist = (plr.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-         text.Text = plr.Name .. " | " .. math.floor(dist) .. "m"
-      end
-   end)
+   return closest
 end
 
 -- ON/OFF
 Tab:CreateToggle({
-   Name = "ロックオンON",
+   Name = "LockOn",
    CurrentValue = false,
-   Callback = function(Value)
-      enabled = Value
+   Callback = function(v)
+      enabled = v
 
-      if not Value then
+      if not v then
          if highlight then highlight:Destroy() end
-         if billboard then billboard:Destroy() end
          highlight = nil
-         billboard = nil
-         targetPlayer = nil
+         target = nil
          return
       end
 
       task.spawn(function()
          while enabled do
-            local closest = getClosest()
-            if closest ~= targetPlayer then
-               targetPlayer = closest
-               createVisual(targetPlayer)
+            local ok, err = pcall(function()
+
+               local newTarget = getClosest()
+
+               if newTarget ~= target then
+                  target = newTarget
+
+                  if highlight then highlight:Destroy() end
+                  highlight = nil
+
+                  if target and target.Character then
+                     local char = target.Character
+                     local hrp = char:FindFirstChild("HumanoidRootPart")
+
+                     if hrp then
+                        highlight = Instance.new("Highlight")
+                        highlight.FillTransparency = 0.5
+                        highlight.OutlineColor = Color3.new(1,0,0)
+                        highlight.Parent = char
+                     end
+                  end
+               end
+
+            end)
+
+            if not ok then
+               warn(err)
             end
+
             task.wait(0.5)
          end
       end)
    end
 })
 
--- 手動更新ボタン
 Tab:CreateButton({
-   Name = "ターゲット更新",
+   Name = "Hello",
    Callback = function()
-      local closest = getClosest()
-      targetPlayer = closest
-      createVisual(targetPlayer)
+      print("Hello")
    end
 })
