@@ -1,14 +1,17 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
 local Window = Rayfield:CreateWindow({
-   Name = "My GUI",
-   LoadingTitle = "Loading...",
-   LoadingSubtitle = "Rayfield",
+   Name = "GitHub GUI",
+   LoadingTitle = "Loading",
+   LoadingSubtitle = "From GitHub",
    ConfigurationSaving = { Enabled = false }
 })
+
 local Tab = Window:CreateTab("Main", 4483362458)
+
 Tab:CreateButton({
-   Name = "押すボタン",
+   Name = "Hello",
    Callback = function()
-      print("押された")
+      print("GitHubから実行中")
    end
 })
