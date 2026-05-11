@@ -1,0 +1,78 @@
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local selectedPart = nil
+
+-- GUI作成
+local Window = Rayfield:CreateWindow({
+   Name = "Throw System",
+   LoadingTitle = "Loading...",
+   LoadingSubtitle = "Object Throw GUI",
+   ConfigurationSaving = { Enabled = false }
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- ① 掴む（クリックで選択）
+Tab:CreateButton({
+   Name = "オブジェクト選択モード",
+   Callback = function()
+      mouse.Button1Down:Connect(function()
+         local target = mouse.Target
+         if target and target:IsA("BasePart") then
+            selectedPart = target
+            print("選択:", selectedPart.Name)
+         end
+      end)
+   end
+})
+
+-- ② 飛ばす（敵へ）
+Tab:CreateButton({
+   Name = "敵に飛ばす",
+   Callback = function()
+      if not selectedPart then return end
+
+      local char = player.Character
+      if not char then return end
+
+      -- 一番近いプレイヤーを敵扱い
+      local closest = nil
+      local dist = math.huge
+
+      for _, plr in pairs(Players:GetPlayers()) do
+         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local d = (plr.Character.HumanoidRootPart.Position - selectedPart.Position).Magnitude
+            if d < dist then
+               dist = d
+               closest = plr
+            end
+         end
+      end
+
+      if not closest then return end
+
+      local hrp = closest.Character.HumanoidRootPart
+
+      -- 飛ばす力
+      local bv = Instance.new("BodyVelocity")
+      bv.Velocity = (hrp.Position - selectedPart.Position).Unit * 120
+      bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+      bv.Parent = selectedPart
+
+      game.Debris:AddItem(bv, 0.3)
+   end
+})
+
+-- ③ リセット
+Tab:CreateButton({
+   Name = "選択解除",
+   Callback = function()
+      selectedPart = nil
+      print("解除")
+   end
+})
