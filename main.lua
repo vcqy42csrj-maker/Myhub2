@@ -1,8 +1,24 @@
 local Players = game:GetService("Players")
 
-local function carryPlayer(carrier, target)
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
 
-    local char1 = carrier.Character
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Parent = gui
+frame.Size = UDim2.new(0,200,0,300)
+frame.Position = UDim2.new(0.4,0,0.2,0)
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = frame
+
+-- 肩車
+local function carry(target)
+
+    local char1 = player.Character
     local char2 = target.Character
 
     if not char1 or not char2 then return end
@@ -12,30 +28,31 @@ local function carryPlayer(carrier, target)
 
     if not torso or not hrp2 then return end
 
-    -- 位置
     hrp2.CFrame = torso.CFrame * CFrame.new(0,2,0)
 
-    -- 固定
     local weld = Instance.new("WeldConstraint")
-    weld.Name = "CarryWeld"
     weld.Part0 = torso
     weld.Part1 = hrp2
     weld.Parent = torso
 end
 
-Players.PlayerAdded:Connect(function(player)
+-- プレイヤーボタン
+local function createButton(plr)
 
-    player.Chatted:Connect(function(msg)
+    if plr == player then return end
 
-        local split = msg:split(" ")
+    local button = Instance.new("TextButton")
+    button.Parent = frame
+    button.Size = UDim2.new(1,0,0,40)
+    button.Text = plr.Name
 
-        if split[1] == "/carry" then
-
-            local target = Players:FindFirstChild(split[2])
-
-            if target then
-                carryPlayer(player, target)
-            end
-        end
+    button.MouseButton1Click:Connect(function()
+        carry(plr)
     end)
-end)
+end
+
+for _,plr in pairs(Players:GetPlayers()) do
+    createButton(plr)
+end
+
+Players.PlayerAdded:Connect(createButton)
