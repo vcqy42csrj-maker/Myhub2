@@ -1,0 +1,16 @@
+local RunService = game:GetService("RunService")
+
+local bomb = workspace.Bomb
+local targetHRP = target.Character.HumanoidRootPart
+
+RunService.Heartbeat:Connect(function()
+
+    if bomb and targetHRP then
+
+        local direction =
+            (targetHRP.Position - bomb.Position).Unit
+
+        bomb.AssemblyLinearVelocity =
+            direction * 80
+    end
+end)
