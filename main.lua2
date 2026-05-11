@@ -1,1 +1,118 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local event = Instance.new("RemoteEvent")
+event.Name = "LaunchEvent"
+event.Parent = ReplicatedStorage
+
+event.OnServerEvent:Connect(function(player, part, targetPos, power)
+
+    if not part or not part:IsA("BasePart") then return end
+
+    -- Rope削除
+    for _, v in pairs(part:GetChildren()) do
+        if v:IsA("RopeConstraint") then
+            v:Destroy()
+        end
+    end
+
+    local dir = (targetPos - part.Position).Unit
+
+    local velocity = Instance.new("BodyVelocity")
+    velocity.Velocity = dir * (power or 100)
+    velocity.MaxForce = Vector3.new(1e6,1e6,1e6)
+    velocity.Parent = part
+
+    game.Debris:AddItem(velocity, 0.25)
+end)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local event = ReplicatedStorage:WaitForChild("LaunchEvent")
+
+local selectedPart = nil
+local power = 120
+local autoMode = false
+
+-- Rayfield
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Rope Control System",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Rope GUI",
+    ConfigurationSaving = {
+        Enabled = false
+    }
+})
+
+-- TAB
+local Tab = Window:CreateTab("Control", 4483362458)
+
+-- 掴む機能
+Tab:CreateToggle({
+    Name = "クリックで掴む",
+    CurrentValue = false,
+    Callback = function(v)
+        autoMode = v
+    end
+})
+
+mouse.Button1Down:Connect(function()
+    if autoMode and mouse.Target then
+        selectedPart = mouse.Target
+    end
+end)
+
+-- パワースライダー
+Tab:CreateSlider({
+    Name = "発射パワー",
+    Range = {50, 300},
+    Increment = 10,
+    CurrentValue = 120,
+    Callback = function(v)
+        power = v
+    end
+})
+
+-- 手動発射
+Tab:CreateButton({
+    Name = "敵に突進",
+    Callback = function()
+        if not selectedPart then return end
+
+        local char = player.Character
+        if not char then return end
+
+        local nearest
+        local dist = math.huge
+
+        for _, v in pairs(workspace:GetChildren()) do
+            if v:FindFirstChild("Humanoid") and v ~= char then
+                local root = v:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local d = (root.Position - char.HumanoidRootPart.Position).Magnitude
+                    if d < dist then
+                        dist = d
+                        nearest = root
+                    end
+                end
+            end
+        end
+
+        if nearest then
+            event:FireServer(selectedPart, nearest.Position, power)
+        end
+    end
+})
+
+-- ワンクリック解除
+Tab:CreateButton({
+    Name = "選択解除",
+    Callback = function()
+        selectedPart = nil
+    end
+})
