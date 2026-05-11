@@ -1,7 +1,7 @@
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
 
 -- GUI
 local gui = Instance.new("ScreenGui")
@@ -9,11 +9,59 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
 frame.Parent = gui
-frame.Size = UDim2.new(0,200,0,300)
+frame.Size = UDim2.new(0,220,0,300)
 frame.Position = UDim2.new(0.4,0,0.2,0)
+frame.BackgroundTransparency = 0.2
 
 local layout = Instance.new("UIListLayout")
 layout.Parent = frame
+
+-- ドラッグ
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+frame.InputBegan:Connect(function(input)
+
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+    if input == dragInput and dragging then
+
+        local delta = input.Position - dragStart
+
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
 
 -- 肩車
 local function carry(target)
@@ -31,6 +79,7 @@ local function carry(target)
     hrp2.CFrame = torso.CFrame * CFrame.new(0,2,0)
 
     local weld = Instance.new("WeldConstraint")
+    weld.Name = "CarryWeld"
     weld.Part0 = torso
     weld.Part1 = hrp2
     weld.Parent = torso
