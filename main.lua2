@@ -1,16 +1,96 @@
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local bomb = workspace.Bomb
-local targetHRP = target.Character.HumanoidRootPart
+local player = Players.LocalPlayer
 
-RunService.Heartbeat:Connect(function()
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Parent = player:WaitForChild("PlayerGui")
 
-    if bomb and targetHRP then
+local frame = Instance.new("Frame")
+frame.Parent = gui
+frame.Size = UDim2.new(0,220,0,300)
+frame.Position = UDim2.new(0.4,0,0.2,0)
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = frame
+
+-- 爆弾追尾
+local function launchBomb(target)
+
+    local char = player.Character
+    local targetChar = target.Character
+
+    if not char or not targetChar then return end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+
+    if not hrp or not targetHRP then return end
+
+    -- 爆弾
+    local bomb = Instance.new("Part")
+    bomb.Shape = Enum.PartType.Ball
+    bomb.Size = Vector3.new(2,2,2)
+    bomb.Position = hrp.Position + Vector3.new(0,5,0)
+    bomb.Parent = workspace
+
+    local force = Instance.new("BodyVelocity")
+    force.MaxForce = Vector3.new(999999,999999,999999)
+    force.Parent = bomb
+
+    -- 追尾
+    local connection
+
+    connection = RunService.Heartbeat:Connect(function()
+
+        if not bomb or not bomb.Parent then
+            connection:Disconnect()
+            return
+        end
+
+        if not targetHRP then
+            connection:Disconnect()
+            return
+        end
 
         local direction =
             (targetHRP.Position - bomb.Position).Unit
 
-        bomb.AssemblyLinearVelocity =
-            direction * 80
-    end
-end)
+        force.Velocity = direction * 80
+    end)
+
+    -- 爆発
+    bomb.Touched:Connect(function(hit)
+
+        if hit.Parent == targetChar then
+
+            local explosion = Instance.new("Explosion")
+            explosion.Position = bomb.Position
+            explosion.Parent = workspace
+
+            bomb:Destroy()
+        end
+    end)
+end
+
+-- プレイヤーボタン
+local function createButton(plr)
+
+    if plr == player then return end
+
+    local button = Instance.new("TextButton")
+    button.Parent = frame
+    button.Size = UDim2.new(1,0,0,40)
+    button.Text = plr.Name
+
+    button.MouseButton1Click:Connect(function()
+        launchBomb(plr)
+    end)
+end
+
+for _,plr in pairs(Players:GetPlayers()) do
+    createButton(plr)
+end
+
+Players.PlayerAdded:Connect(createButton)
