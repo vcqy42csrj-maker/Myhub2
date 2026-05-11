@@ -1,47 +1,52 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
 local selectedPart = nil
+local selecting = false
 
--- GUI作成
 local Window = Rayfield:CreateWindow({
    Name = "Throw System",
    LoadingTitle = "Loading...",
-   LoadingSubtitle = "Object Throw GUI",
+   LoadingSubtitle = "Fixed Version",
    ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
--- ① 掴む（クリックで選択）
+-- 選択モード
 Tab:CreateButton({
-   Name = "オブジェクト選択モード",
+   Name = "選択モードON",
    Callback = function()
-      mouse.Button1Down:Connect(function()
-         local target = mouse.Target
-         if target and target:IsA("BasePart") then
-            selectedPart = target
-            print("選択:", selectedPart.Name)
-         end
-      end)
+      selecting = true
+      print("選択モードON")
    end
 })
 
--- ② 飛ばす（敵へ）
+-- クリックで1回だけ取得
+mouse.Button1Down:Connect(function()
+   if not selecting then return end
+
+   local target = mouse.Target
+   if target and target:IsA("BasePart") then
+      selectedPart = target
+      selecting = false
+      print("選択完了:", target.Name)
+   end
+end)
+
+-- 飛ばす
 Tab:CreateButton({
    Name = "敵に飛ばす",
    Callback = function()
-      if not selectedPart then return end
+      if not selectedPart then
+         print("何も選択されてない")
+         return
+      end
 
-      local char = player.Character
-      if not char then return end
-
-      -- 一番近いプレイヤーを敵扱い
-      local closest = nil
+      local closest
       local dist = math.huge
 
       for _, plr in pairs(Players:GetPlayers()) do
@@ -58,21 +63,13 @@ Tab:CreateButton({
 
       local hrp = closest.Character.HumanoidRootPart
 
-      -- 飛ばす力
       local bv = Instance.new("BodyVelocity")
       bv.Velocity = (hrp.Position - selectedPart.Position).Unit * 120
-      bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+      bv.MaxForce = Vector3.new(1e9,1e9,1e9)
       bv.Parent = selectedPart
 
       game.Debris:AddItem(bv, 0.3)
-   end
-})
 
--- ③ リセット
-Tab:CreateButton({
-   Name = "選択解除",
-   Callback = function()
-      selectedPart = nil
-      print("解除")
+      print("発射した")
    end
 })
