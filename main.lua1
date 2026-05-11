@@ -1,36 +1,3 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
-local CarryEvent = ReplicatedStorage:WaitForChild("CarryEvent")
-
-CarryEvent.OnServerEvent:Connect(function(player, targetName)
-
-    local target = Players:FindFirstChild(targetName)
-    if not target then return end
-
-    local char1 = player.Character
-    local char2 = target.Character
-
-    if not char1 or not char2 then return end
-
-    local torso = char1:FindFirstChild("Torso")
-    local hrp2 = char2:FindFirstChild("HumanoidRootPart")
-
-    if not torso or not hrp2 then return end
-
-    local old = torso:FindFirstChild("CarryWeld")
-    if old then
-        old:Destroy()
-    end
-
-    hrp2.CFrame = torso.CFrame * CFrame.new(0,2,0)
-
-    local weld = Instance.new("WeldConstraint")
-    weld.Name = "CarryWeld"
-    weld.Part0 = torso
-    weld.Part1 = hrp2
-    weld.Parent = torso
-end)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
