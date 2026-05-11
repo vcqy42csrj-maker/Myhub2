@@ -91,4 +91,3 @@ Tab:CreateButton({
       grabbedObject = nil
       print("リセット")
    end
-})
