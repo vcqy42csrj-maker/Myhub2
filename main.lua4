@@ -2,92 +2,100 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
+local mouse = player:GetMouse()
 
-local grabbedObject = nil
+local selected = nil
+local selecting = false
 
--- =====================
+-- ======================
 -- GUI
--- =====================
+-- ======================
 local Window = Rayfield:CreateWindow({
    Name = "Throw System",
    LoadingTitle = "Loading...",
-   LoadingSubtitle = "Object Control",
+   LoadingSubtitle = "Existing Objects Only",
    ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
--- =====================
--- オブジェクト取得（仮）
--- =====================
+-- ======================
+-- 掴む（既存オブジェクトのみ）
+-- ======================
 Tab:CreateButton({
-   Name = "オブジェクト取得（例）",
+   Name = "掴むモードON",
    Callback = function()
-      local char = player.Character
-      if not char then return end
-
-      local root = char:FindFirstChild("HumanoidRootPart")
-      if not root then return end
-
-      -- 仮オブジェクト生成（あなたの既存システムに差し替えOK）
-      local part = Instance.new("Part")
-      part.Size = Vector3.new(2,2,2)
-      part.Position = root.Position + Vector3.new(0,5,0)
-      part.Anchored = false
-      part.Parent = workspace
-
-      grabbedObject = part
-      print("オブジェクト取得")
+      selecting = true
+      print("クリックでオブジェクト選択")
    end
 })
 
--- =====================
--- 敵に突進
--- =====================
+mouse.Button1Down:Connect(function()
+   if not selecting then return end
+
+   local target = mouse.Target
+   if target and target:IsA("BasePart") then
+      selected = target
+      selecting = false
+      print("選択:", target.Name)
+   end
+end)
+
+-- ======================
+-- 一番近い敵取得
+-- ======================
+local function getClosestEnemy()
+   local closest = nil
+   local dist = math.huge
+
+   for _, plr in pairs(Players:GetPlayers()) do
+      if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+         local d = (plr.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+         if d < dist then
+            dist = d
+            closest = plr
+         end
+      end
+   end
+
+   return closest
+end
+
+-- ======================
+-- 突進
+-- ======================
 Tab:CreateButton({
    Name = "敵に突進",
    Callback = function()
-      if not grabbedObject then
-         print("オブジェクトなし")
+      if not selected then
+         print("オブジェクト未選択")
          return
       end
 
-      -- 一番近い敵探す
-      local closest
-      local dist = math.huge
+      local enemy = getClosestEnemy()
+      if not enemy then return end
 
-      for _, plr in pairs(Players:GetPlayers()) do
-         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local d = (plr.Character.HumanoidRootPart.Position - grabbedObject.Position).Magnitude
-            if d < dist then
-               dist = d
-               closest = plr
-            end
-         end
-      end
+      local hrp = enemy.Character.HumanoidRootPart
 
-      if not closest then return end
+      local velocity = Instance.new("BodyVelocity")
+      velocity.Velocity = (hrp.Position - selected.Position).Unit * 150
+      velocity.MaxForce = Vector3.new(1e9,1e9,1e9)
+      velocity.Parent = selected
 
-      local hrp = closest.Character.HumanoidRootPart
+      game:GetService("Debris"):AddItem(velocity, 0.25)
 
-      -- 突進処理
-      local bv = Instance.new("BodyVelocity")
-      bv.Velocity = (hrp.Position - grabbedObject.Position).Unit * 120
-      bv.MaxForce = Vector3.new(1e9,1e9,1e9)
-      bv.Parent = grabbedObject
-
-      game:GetService("Debris"):AddItem(bv, 0.3)
-
-      print("突進発射")
+      print("突進:", selected.Name)
    end
 })
 
--- =====================
+-- ======================
 -- リセット
--- =====================
+-- ======================
 Tab:CreateButton({
    Name = "解除",
    Callback = function()
-      grabbedObject = nil
+      selected = nil
+      selecting = false
       print("リセット")
    end
+})
