@@ -1,101 +1,15 @@
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local function shoulderCarry(topCharacter, bottomCharacter)
+    local topTorso = topCharacter:FindFirstChild("Torso")
+    local bottomTorso = bottomCharacter:FindFirstChild("Torso")
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local mouse = player:GetMouse()
+    if not topTorso or not bottomTorso then return end
 
-local selected = nil
-local selecting = false
+    topCharacter:SetPrimaryPartCFrame(
+        bottomTorso.CFrame * CFrame.new(0, 2.5, 0)
+    )
 
--- ======================
--- GUI
--- ======================
-local Window = Rayfield:CreateWindow({
-   Name = "Throw System",
-   LoadingTitle = "Loading...",
-   LoadingSubtitle = "Existing Objects Only",
-   ConfigurationSaving = { Enabled = false }
-})
-
-local Tab = Window:CreateTab("Main", 4483362458)
-
--- ======================
--- 掴む（既存オブジェクトのみ）
--- ======================
-Tab:CreateButton({
-   Name = "掴むモードON",
-   Callback = function()
-      selecting = true
-      print("クリックでオブジェクト選択")
-   end
-})
-
-mouse.Button1Down:Connect(function()
-   if not selecting then return end
-
-   local target = mouse.Target
-   if target and target:IsA("BasePart") then
-      selected = target
-      selecting = false
-      print("選択:", target.Name)
-   end
-end)
-
--- ======================
--- 一番近い敵取得
--- ======================
-local function getClosestEnemy()
-   local closest = nil
-   local dist = math.huge
-
-   for _, plr in pairs(Players:GetPlayers()) do
-      if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-         local d = (plr.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
-         if d < dist then
-            dist = d
-            closest = plr
-         end
-      end
-   end
-
-   return closest
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = topTorso
+    weld.Part1 = bottomTorso
+    weld.Parent = topTorso
 end
-
--- ======================
--- 突進
--- ======================
-Tab:CreateButton({
-   Name = "敵に突進",
-   Callback = function()
-      if not selected then
-         print("オブジェクト未選択")
-         return
-      end
-
-      local enemy = getClosestEnemy()
-      if not enemy then return end
-
-      local hrp = enemy.Character.HumanoidRootPart
-
-      local velocity = Instance.new("BodyVelocity")
-      velocity.Velocity = (hrp.Position - selected.Position).Unit * 150
-      velocity.MaxForce = Vector3.new(1e9,1e9,1e9)
-      velocity.Parent = selected
-
-      game:GetService("Debris"):AddItem(velocity, 0.25)
-
-      print("突進:", selected.Name)
-   end
-})
-
--- ======================
--- リセット
--- ======================
-Tab:CreateButton({
-   Name = "解除",
-   Callback = function()
-      selected = nil
-      selecting = false
-      print("リセット")
-   end
-})
