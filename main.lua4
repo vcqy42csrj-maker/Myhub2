@@ -1,15 +1,40 @@
-local function shoulderCarry(topCharacter, bottomCharacter)
+-- main.lua
+-- R6 Shoulder Carry Script
+
+local ShoulderCarry = {}
+
+function ShoulderCarry.Start(topCharacter, bottomCharacter)
+    if not topCharacter or not bottomCharacter then return end
+
     local topTorso = topCharacter:FindFirstChild("Torso")
     local bottomTorso = bottomCharacter:FindFirstChild("Torso")
 
-    if not topTorso or not bottomTorso then return end
+    if not topTorso or not bottomTorso then
+        warn("R6 character required")
+        return
+    end
 
-    topCharacter:SetPrimaryPartCFrame(
+    topCharacter:PivotTo(
         bottomTorso.CFrame * CFrame.new(0, 2.5, 0)
     )
 
     local weld = Instance.new("WeldConstraint")
+    weld.Name = "ShoulderCarryWeld"
     weld.Part0 = topTorso
     weld.Part1 = bottomTorso
     weld.Parent = topTorso
 end
+
+function ShoulderCarry.Stop(topCharacter)
+    if not topCharacter then return end
+
+    local torso = topCharacter:FindFirstChild("Torso")
+    if torso then
+        local weld = torso:FindFirstChild("ShoulderCarryWeld")
+        if weld then
+            weld:Destroy()
+        end
+    end
+end
+
+return ShoulderCarry
