@@ -1,0 +1,77 @@
+-- トリガーボット: 照準・距離判定 + 指定座標タップ
+-- 前提: Robloxエクスプロイト実行環境 (Synapse, Krnl等) にて動作
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+
+-- 定数設定
+local TARGET_DISTANCE = 200 -- スタッド
+local TARGET_BUTTON_X = 0.833 -- 画面幅に対するX座標比 (900/1080から算出)
+local TARGET_BUTTON_Y = 0.859 -- 画面高に対するY座標比 (1650/1920から算出)
+local CLICK_DURATION = 0.1 -- タップ持続時間（秒）
+
+local LocalPlayer = Players.LocalPlayer
+
+-- 画面座標をタップする関数
+local function TapScreen(xRatio, yRatio)
+    local viewSize = Camera.ViewportSize
+    local x = viewSize.X * xRatio
+    local y = viewSize.Y * yRatio
+    
+    UserInputService.TouchEnabled = true
+    
+    -- タップダウンイベント生成
+    local touchDown = Instance.new("TouchInputEvent")
+    touchDown.TouchType = Enum.TouchType.Begin
+    touchDown.Position = Vector2.new(x, y)
+    touchDown.Delta = Vector2.new(0, 0)
+    
+    -- タップアップイベント生成
+    local touchUp = Instance.new("TouchInputEvent")
+    touchUp.TouchType = Enum.TouchType.End
+    touchUp.Position = Vector2.new(x, y)
+    touchUp.Delta = Vector2.new(0, 0)
+    
+    UserInputService:SendTouchInputEvent(touchDown)
+    wait(CLICK_DURATION)
+    UserInputService:SendTouchInputEvent(touchUp)
+end
+
+-- メインループ
+RunService.RenderStepped:Connect(function()
+    -- クロスヘア（カメラ）の位置と方向を取得
+    local camPos = Camera.CFrame.Position
+    local camDir = Camera.CFrame.LookVector
+    
+    -- レイキャスト（照射）を実行し、ターゲットを検出
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local raycastResult = workspace:Raycast(camPos, camDir * 1000, raycastParams)
+    
+    if raycastResult then
+        local hitInstance = raycastResult.Instance
+        local hitParent = hitInstance.Parent
+        
+        -- ターゲットがプレイヤーかどうかを判定
+        if hitParent and hitParent:IsA("Model") and hitParent:FindFirstChild("Humanoid") then
+            local targetPlayer = Players:GetPlayerFromCharacter(hitParent)
+            
+            if targetPlayer and targetPlayer ~= LocalPlayer then
+                -- 距離判定 (200スタッド以内)
+                local distance = (hitParent.PrimaryPart.Position - camPos).Magnitude
+                
+                if distance <= TARGET_DISTANCE then
+                    -- 条件成立: 対象に照準 + 距離内 -> ボタンタップ実行
+                    TapScreen(TARGET_BUTTON_X, TARGET_BUTTON_Y)
+                    
+                    -- 実行間隔防止の為、任意のウェイトを入れる（タップの連打によるカメラ暴走対策）
+                    wait(0.3) 
+                end
+            end
+        end
+    end
+end)
