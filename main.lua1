@@ -1,86 +1,151 @@
+-- FTAP TriggerBot - クロスヘア照準版 (1.2秒間隔固定、反応速度最適化、Qトグル)
+-- 最適化内容: ループ方式変更、無駄な待機削除、クリック方式絞り込み、事前判定導入
+
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ContextActionService = game:GetService("ContextActionService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Workspace = game:GetService("Workspace")
 
-local player = Players.LocalPlayer
-local CarryEvent = ReplicatedStorage:WaitForChild("CarryEvent")
+local Player = Players.LocalPlayer
+local Mouse = nil
+repeat task.wait(0.05) Mouse = Player:GetMouse() until Mouse
 
--- GUI
-local gui = Instance.new("ScreenGui")
-gui.Parent = player:WaitForChild("PlayerGui")
+local Character = Player.Character
+local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
 
-local frame = Instance.new("Frame")
-frame.Parent = gui
-frame.Size = UDim2.new(0,220,0,300)
-frame.Position = UDim2.new(0.4,0,0.2,0)
+-- 設定
+local ENABLED = true
+local CLICK_INTERVAL = 1.2      -- 間隔制限は変更しない
+local MAX_DISTANCE = 200
 
-local layout = Instance.new("UIListLayout")
-layout.Parent = frame
+local isEnabled = ENABLED
+local lastClickTime = 0
+local renderConn = nil
+local camera = Workspace.CurrentCamera
 
--- ドラッグ
-local dragging = false
-local dragInput
-local dragStart
-local startPos
+-- キャッシュ変数 (ループ内での再取得を削減)
+local params = RaycastParams.new()
+params.FilterType = Enum.RaycastFilterType.Blacklist
 
-frame.InputBegan:Connect(function(input)
+-- ターゲット判定 (高速化)
+local function IsValidTarget(plr)
+    if plr == Player then return false end
+    local char = plr.Character
+    if not char then return false end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    if humanoid.Health <= 0 then return false end
+    return true
+end
 
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = true
-        dragStart = input.Position
-        startPos = frame.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+-- クロスヘアターゲット取得 (最適化版 - 無駄なループ削減、直接ヒット部分からプレイヤー解決)
+local function GetTargetFromCrosshair()
+    if not camera then return nil end
+    if not HumanoidRootPart then return nil end
+    
+    local viewportSize = camera.ViewportSize
+    local centerX = viewportSize.X / 2
+    local centerY = viewportSize.Y / 2
+    
+    local ray = camera:ScreenPointToRay(centerX, centerY)
+    params.FilterDescendantsInstances = {Character, camera}
+    
+    local hit = Workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+    if not hit then return nil end
+    
+    local hitPart = hit.Instance
+    if not hitPart then return nil end
+    
+    -- 直接プレイヤー解決 (ループ回数削減)
+    local current = hitPart
+    for _ = 1, 4 do
+        current = current.Parent
+        if not current then break end
+        local plr = Players:GetPlayerFromCharacter(current)
+        if plr and IsValidTarget(plr) then
+            local dist = (hitPart.Position - HumanoidRootPart.Position).Magnitude
+            if dist <= MAX_DISTANCE then
+                return plr
             end
-        end)
+            return nil
+        end
     end
-end)
+    
+    return nil
+end
 
-frame.InputChanged:Connect(function(input)
+-- クリック実行 (最速化 - 使用率の高い方式のみ、無駄な待機削減)
+local function PerformClick()
+    if not isEnabled then return end
+    local now = os.clock()  -- tick() より高速な os.clock() を使用
+    if now - lastClickTime < CLICK_INTERVAL then return end
 
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-    or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-
-    if input == dragInput and dragging then
-
-        local delta = input.Position - dragStart
-
-        frame.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
--- プレイヤーボタン
-local function createButton(plr)
-
-    if plr == player then return end
-
-    local button = Instance.new("TextButton")
-    button.Parent = frame
-    button.Size = UDim2.new(1,0,0,40)
-    button.Text = plr.Name
-
-    button.MouseButton1Click:Connect(function()
-        CarryEvent:FireServer(plr.Name)
+    -- 方式1: 標準クリック (最速)
+    pcall(function() Mouse:Click() end)
+    
+    -- 方式2: ダウン/アップ (待機時間を0.001秒に短縮)
+    pcall(function()
+        Mouse.Button1Down:Fire()
+        task.wait(0.001)
+        Mouse.Button1Up:Fire()
     end)
+    
+    -- 方式3: VirtualInputManager (待機時間短縮)
+    pcall(function()
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+        task.wait(0.001)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    end)
+
+    lastClickTime = now
+    -- デバッグ出力を削除して速度向上 (必要に応じてコメント解除)
+    -- print("[FTAP] クリック実行")
 end
 
-for _,plr in pairs(Players:GetPlayers()) do
-    createButton(plr)
+-- メインループ (RenderSteppedのみ使用 - 描画同期で最速)
+local function MainLoop()
+    if not isEnabled then return end
+    
+    local char = Player.Character
+    if not char then return end
+    local root = char.PrimaryPart
+    if not root then return end
+    HumanoidRootPart = root
+    
+    -- キャッシュされた HumanoidRootPart を使用
+    if GetTargetFromCrosshair() then
+        PerformClick()
+    end
 end
 
-Players.PlayerAdded:Connect(createButton)
+-- トグル (高速化のため出力簡略)
+local function Toggle()
+    isEnabled = not isEnabled
+    print("[FTAP] " .. tostring(isEnabled))
+end
+
+-- ホットキー (3方式)
+ContextActionService:BindAction("FTAP_Toggle", function(_, state)
+    if state == Enum.UserInputState.Begin then Toggle() end
+end, false, Enum.KeyCode.Q)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Q then
+        Toggle()
+    end
+end)
+
+Mouse.KeyDown:Connect(function(key)
+    if key:lower() == "q" then Toggle() end
+end)
+
+-- ループ開始 (RenderSteppedのみ - 最も反応が速い)
+if renderConn then renderConn:Disconnect() end
+renderConn = RunService.RenderStepped:Connect(MainLoop)
+
+print("[FTAP] 高速化版ロード完了 | 間隔: 1.2秒固定 | 距離: 200 | ホットキー: Q")
+print("[FTAP] 最適化: RenderStepped専用, os.clock()使用, 待機0.001秒, デバッグ出力オフ")
+print("[FTAP] 状態: " .. tostring(isEnabled))
