@@ -1,96 +1,158 @@
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+--[[
+  FTAP Object Grabber (Toggle with Q key)
+  半径10以内のオブジェクトを固定（自分の体は除外）
+  Qキーでオン/オフ切り替え（UIなし）
+--]]
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
-local lp = Players.LocalPlayer
+local attachedObjects = {}
+local maxObjects = 5
+local isAttaching = false
+local grabRadius = 10
+local isEnabled = false  -- 初期状態はOFF
 
-local enabled = false
-local target = nil
-local highlight = nil
-
-local Window = Rayfield:CreateWindow({
-   Name = "Lock System",
-   LoadingTitle = "Loading",
-   LoadingSubtitle = "Safe Version",
-   ConfigurationSaving = { Enabled = false }
-})
-
-local Tab = Window:CreateTab("Main", 4483362458)
-
--- 安全に取得
-local function getClosest()
-   if not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart") then return nil end
-
-   local closest, dist = nil, math.huge
-
-   for _, plr in pairs(Players:GetPlayers()) do
-      if plr ~= lp and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-         local d = (plr.Character.HumanoidRootPart.Position - lp.Character.HumanoidRootPart.Position).Magnitude
-         if d < dist then
-            dist = d
-            closest = plr
-         end
-      end
-   end
-
-   return closest
+-- ==================== 自分のパーツかどうか判定 ====================
+local function isOwnCharacterPart(part)
+    if part:IsDescendantOf(character) then
+        return true
+    end
+    if part.Parent and part.Parent == character then
+        return true
+    end
+    if part.Name == "HumanoidRootPart" and part.Parent == character then
+        return true
+    end
+    return false
 end
 
--- ON/OFF
-Tab:CreateToggle({
-   Name = "LockOn",
-   CurrentValue = false,
-   Callback = function(v)
-      enabled = v
-
-      if not v then
-         if highlight then highlight:Destroy() end
-         highlight = nil
-         target = nil
-         return
-      end
-
-      task.spawn(function()
-         while enabled do
-            local ok, err = pcall(function()
-
-               local newTarget = getClosest()
-
-               if newTarget ~= target then
-                  target = newTarget
-
-                  if highlight then highlight:Destroy() end
-                  highlight = nil
-
-                  if target and target.Character then
-                     local char = target.Character
-                     local hrp = char:FindFirstChild("HumanoidRootPart")
-
-                     if hrp then
-                        highlight = Instance.new("Highlight")
-                        highlight.FillTransparency = 0.5
-                        highlight.OutlineColor = Color3.new(1,0,0)
-                        highlight.Parent = char
-                     end
-                  end
-               end
-
-            end)
-
-            if not ok then
-               warn(err)
+-- ==================== 解放関数 ====================
+local function releaseAll()
+    for _, obj in ipairs(attachedObjects) do
+        if obj and obj.Parent then
+            for _, weld in ipairs(obj:GetChildren()) do
+                if weld:IsA("WeldConstraint") then
+                    weld:Destroy()
+                end
             end
+            if obj:IsA("BasePart") then
+                obj.Anchored = false
+            end
+        end
+    end
+    attachedObjects = {}
+    print("📦 All released")
+end
 
-            task.wait(0.5)
-         end
-      end)
-   end
-})
+-- ==================== メイン取得関数 ====================
+local function grabNearbyObjects()
+    if isAttaching then return end
+    if not isEnabled then return end  -- OFFなら何もしない
+    
+    isAttaching = true
+    
+    if not character or not character.Parent then
+        print("❌ Character not valid")
+        isAttaching = false
+        return
+    end
+    
+    local rootPos = rootPart.Position
+    local objectsToGrab = {}
+    local skippedSelf = 0
+    local skippedAttached = 0
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            -- 自分の体を除外
+            if isOwnCharacterPart(obj) then
+                skippedSelf = skippedSelf + 1
+                continue
+            end
+            
+            -- 既に固定済みはスキップ
+            local alreadyAttached = false
+            for _, attached in ipairs(attachedObjects) do
+                if attached == obj then
+                    alreadyAttached = true
+                    skippedAttached = skippedAttached + 1
+                    break
+                end
+            end
+            if alreadyAttached then
+                continue
+            end
+            
+            -- 半径チェック
+            local distance = (obj.Position - rootPos).Magnitude
+            if distance <= grabRadius then
+                table.insert(objectsToGrab, obj)
+            end
+        end
+    end
+    
+    print("🔍 自分のパーツスキップ: " .. skippedSelf .. "個")
+    print("🔍 固定済みスキップ: " .. skippedAttached .. "個")
+    print("🔍 固定候補: " .. #objectsToGrab .. "個")
+    
+    local grabbedCount = 0
+    for _, obj in ipairs(objectsToGrab) do
+        if #attachedObjects >= maxObjects then
+            break
+        end
+        
+        obj.Anchored = false
+        
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = obj
+        weld.Part1 = rootPart
+        weld.Parent = obj
+        
+        table.insert(attachedObjects, obj)
+        grabbedCount = grabbedCount + 1
+        task.wait(0.1)
+    end
+    
+    isAttaching = false
+    
+    if grabbedCount > 0 then
+        print("✅ Grabbed " .. grabbedCount .. " objects!")
+    else
+        if #objectsToGrab == 0 then
+            print("⚠️ No objects within radius " .. grabRadius)
+        else
+            print("⚠️ Max objects reached (" .. maxObjects .. ")")
+        end
+    end
+end
 
-Tab:CreateButton({
-   Name = "Hello",
-   Callback = function()
-      print("Hello")
-   end
-})
+-- ==================== Qキーでトグル ====================
+local userInputService = game:GetService("UserInputService")
+
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Q then
+        isEnabled = not isEnabled
+        if isEnabled then
+            print("🟢 Object Grabber: ENABLED")
+            grabNearbyObjects()  -- ONになったら即座に1回実行
+        else
+            print("🔴 Object Grabber: DISABLED")
+            releaseAll()  -- OFFで全解除
+        end
+    end
+end)
+
+-- ==================== キャラクター再出現 ====================
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    releaseAll()
+    isEnabled = false
+    print("🔄 Character respawned - Grabber disabled")
+end)
+
+print("📦 Object Grabber loaded! Press Q to toggle (ON/OFF)")
+print("💡 自分の体は完全に除外済み")
